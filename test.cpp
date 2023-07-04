@@ -122,14 +122,14 @@ int main(int argc, char** argv) {
   double **A_glob = nullptr;
   double **B_glob = nullptr;
   double **C_glob = nullptr;
-  int M = 0, N=0, K=0, Mb = 2, Nb = 2 ;
+  int M = 0, N=0, K=0, Mb = 4, Nb = 4 ;
   initMatrix(A_glob, M, K);
   initMatrix(B_glob, K, N);
   if (mpiroot) {
-    std::string Afilename = "example.dat";
+    std::string Afilename = "A.TXT";
     readMatrixFromFile(Afilename, A_glob, &M, &K);
     //printMatrix(A_glob, M, K);
-    std::string Bfilename = "example.dat";
+    std::string Bfilename = "B.TXT";
     readMatrixFromFile(Bfilename, B_glob, &K, &N);
     printf("A(%d,%d) ; B(%d,%d); blocking: %d,%d\n",M,K,K,N, Mb, Nb);
     //printf("A(%d,%d); blocking: %d,%d\n",M,K, Mb, Nb);
@@ -137,6 +137,8 @@ int main(int argc, char** argv) {
   MPI_Bcast(&M, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&K, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(A_glob, M*K, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(B_glob, K*N, MPI_INT, 0, MPI_COMM_WORLD);
   printf("A(%d,%d) ; B(%d,%d) blocking [%d,%d] in PID %d\n",M,K,K,N, Mb, Nb, myrank);
 
 
