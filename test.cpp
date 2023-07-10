@@ -39,6 +39,7 @@ void readMatrixFromFile2(const std::string& filename, double*& matrix, int* numR
         //matrix = new double [ndim];
         for (int i = 0; i < ndim; i++) {
                 file >> matrix[i];
+		std::cout<<matrix[i]<<std::endl;
         }
 
         file.close();
@@ -68,7 +69,7 @@ void readMatrixFromFile(const std::string& filename, double*& matrix, int* numRo
 }
 
 void resetMatrix(double* matrix, int numRows, int numCols) {
-    for (int i = 0; i < numRows; i++) {
+    for (int i = 0; i < numRows*numCols; i++) {
             matrix[i] = 0;
     }
 }
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
   // Initialize mpi
   MPI_Init(&argc, &argv);
 
-  int p_id = 0;
+  int p_id = 7;
   // Get the number of processors and their ids
   /* Begin Cblas context */
   int myrank, nprocs;
@@ -131,10 +132,12 @@ int main(int argc, char** argv) {
   //initMatrix(C_glob, M, N);
   if (mpiroot) {
     std::string Afilename = "example.dat";
+    //std::string Afilename = "new.dat";
     readMatrixFromFile2(Afilename, A_glob, &M, &K);
     //printMatrix(A_glob,M,K);
     //printMatrix(A_glob, M, K);
     std::string Bfilename = "example.dat";
+    //std::string Bfilename = "new.dat";
     readMatrixFromFile2(Bfilename, B_glob, &K, &N);
     printf("A(%d,%d) ; B(%d,%d); blocking: %d,%d\n",M,K,K,N, Mb, Nb);
     printMatrix(B_glob,K,N);
@@ -164,6 +167,7 @@ int main(int argc, char** argv) {
   //int col_a = numroc_(&K, &Nb, &mycol, &izero_a, &npcol);
   int col_a = numroc_(&K, &Nb, &mycol, &zero, &npcol);
 
+  // B is distributed along columns
   int row_b = numroc_(&K, &Mb, &myrow, &zero, &nprow);
   int col_b = numroc_(&N, &Nb, &mycol, &zero, &npcol);
 
@@ -221,11 +225,15 @@ for(int my_i = 0; my_i < row_a; my_i++){
 
   //printf("A-dim in Pid %d: grid[%d,%d] : (%d,%d) \n",myrank, myrow, mycol, row_a,col_a);
   //printf("local A in Pid: %d\n", myrank);
-  if (myrank == p_id){
+  for(int i = 0; i < nprocs; ++i) {
+	  MPI_Barrier(MPI_COMM_WORLD);
+  if (myrank == i){
 	printf("A in (%d,%d)\n", myrow, mycol);
   	printMatrix(localA, row_a, col_a);
+  	fflush(stdout);
   }
-
+  MPI_Barrier(MPI_COMM_WORLD);
+}
 
   //if(myrank == p_id){
   //	printf("B in PID: %d\n",p_id);
@@ -242,14 +250,34 @@ for(int my_i = 0; my_i < row_a; my_i++){
 		//printf("local: (%d,%d) -> global: (%d,%d)\n",my_i, my_j, ii, jj);
 		//printf("%f\n",B_glob[ii*N + jj]);
 		//}
-	localB[my_i*col_b + my_j] = B_glob[ii*N + jj]; 
+	localB[my_i*col_b + my_j] = B_glob[ii*K + jj]; 
 	//localB[my_i + my_j*row_b] = B_glob[jj*K + ii]; 
       }
   }
 
-  if (myrank == p_id){
+  /*
+for(int my_i = 0; my_i < row_b; my_i++){
+      	ii = (((my_i/Mb) * npcol) + mycol)*Mb + my_i%Mb; 
+ 	for(int my_j = 0; my_j < col_b; my_j++){
+      		jj = (((my_j/Nb) * nprow) + myrow)*Nb + my_j%Nb; 
+		if(myrank == p_id){
+		//printf("local: (%d,%d) -> global: (%d,%d)\n",my_i, my_j, ii, jj);
+		//printf("%f\n",B_glob[ii*N + jj]);
+		}
+		localB[my_i*col_b + my_j] = B_glob[ii*K + jj]; 
+      }
+  }
+  */
+
+
+  for(int i = 0; i < nprocs; ++i) {
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (myrank == i){
   printf("B in (%d,%d)\n", myrow, mycol);
   printMatrix(localB, row_b, col_b);
+  fflush(stdout);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
   }
   //for(int i = 0; i < (row_c * col_c); ++i) {
   //  localC[i] = 0;
@@ -273,13 +301,33 @@ for(int my_i = 0; my_i < row_a; my_i++){
   double alpha = 1.0;
   double beta = 0.0;
 
-  pdgemm_("N", "N", &row_a, &col_b, &col_a, &alpha, localA,  &one, &one, desc_a, localB, &one, &one, desc_b, &beta, localC, &one, &one, desc_c);
 
-  if (myrank == p_id){
+  for(int i = 0; i < nprocs; ++i) {
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (myrank == i){
+  printf("C in (%d,%d)\n", myrow, mycol);
+  printMatrix(localC, row_c, col_c);
+  fflush(stdout);
+  }
+  }
+  //pdgemm_("N", "N", &row_a, &col_c, &col_a, &alpha, localA,  &one, &one, desc_a, localB, &one, &one, desc_b, &beta, localC, &one, &one, desc_c);
+
+
+  pdgemm_("N", "N", &M, &N, &K, &alpha, localA,  &one, &one, desc_a, localB, &one, &one, desc_b, &beta, localC, &one, &one, desc_c);
+  if (myrank == 0){
     printf("C in (%d,%d)\n", myrow, mycol);
     printMatrix(localC, row_c, col_c);
   }
 
+  for(int i = 0; i < nprocs; ++i) {
+  MPI_Barrier(MPI_COMM_WORLD);
+  if (myrank == i){
+  printf("C in (%d,%d)\n", myrow, mycol);
+  printMatrix(localC, row_c, col_c);
+  fflush(stdout);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  }
 
   int MPI_Barrier(MPI_Comm communicator);
   // Collect local C:
@@ -291,10 +339,10 @@ for(int my_i = 0; my_i < row_c; my_i++){
       }
   }
 
-  if (mpiroot){
-    printf("C \n");
-    printMatrix(C_glob, M, N);
-  }
+  //if (mpiroot){
+  //  printf("C \n");
+  //  printMatrix(C_glob, M, N);
+  //}
   delete[] localA;
   delete[] localB;
   delete[] localC;
