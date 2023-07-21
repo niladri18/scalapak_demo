@@ -10,6 +10,7 @@
 #include <limits.h>
 #include <cassert>
 #include <chrono>
+#include <fstream>
 
 extern "C" {
   void blacs_get_(int*, int*, int*);
@@ -93,6 +94,16 @@ void printMatrix(double* matrix, int numRows, int numCols) {
     }
 }
 
+void writeMatrix(std::string fname, double* matrix, int numRows, int numCols) {
+    std::ofstream outputFile(fname);
+    for (int i = 0; i < numRows; i++) {
+        for (int j = 0; j < numCols; j++) {
+            outputFile << matrix[i*numCols + j] << " ";
+        }
+        outputFile << std::endl;
+    }
+    outputFile.close();
+}
 int main(int argc, char* argv[]) {
   // Initialize mpi
   MPI_Init(&argc, &argv);
@@ -314,6 +325,7 @@ for(int my_j = 0; my_j < col_b; my_j++){
   if (mpiroot){
     printf("C \n");
     printMatrix(C_glob, M, N);
+    writeMatrix("ans.out", C_glob, M, N);
   }
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration timeTaken = end - start;
