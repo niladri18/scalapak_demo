@@ -107,7 +107,6 @@ void writeMatrix(std::string fname, double* matrix, int numRows, int numCols) {
 int main(int argc, char* argv[]) {
   // Initialize mpi
   MPI_Init(&argc, &argv);
-  printf("Arg: %d\n",atoi(argv[1]));
   int Mb = atoi(argv[1]);
   int Nb = atoi(argv[2]);
 
@@ -323,8 +322,8 @@ for(int my_j = 0; my_j < col_b; my_j++){
   MPI_Allreduce(MPI_IN_PLACE, C_glob, M*N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   int MPI_Barrier(MPI_Comm communicator);
   if (mpiroot){
-    printf("C \n");
-    printMatrix(C_glob, M, N);
+    //printf("C \n");
+    //printMatrix(C_glob, M, N);
     writeMatrix("ans.out", C_glob, M, N);
   }
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
