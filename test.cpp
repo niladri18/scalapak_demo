@@ -10,12 +10,6 @@
 #include <limits.h>
 #include <cassert>
 #include <chrono>
-//#include <scalapack.h>
-
-//extern “C” void descinit_(int*, int*, int*, int*, int*, int*, int*, int*, int*, int*);
-//extern “C” void pdgemm_(char*, char*, int*, int*, int*, double*, double*, int*, int*, int*, double*, int*, int*, int*, double*, double*, int*, int*, int*);
-//extern “C” void blacs_gridexit_(int*);
-//extern “C” int numroc_(int*, int*, int*, int*, int*);
 
 extern "C" {
   void blacs_get_(int*, int*, int*);
@@ -99,9 +93,12 @@ void printMatrix(double* matrix, int numRows, int numCols) {
     }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
   // Initialize mpi
   MPI_Init(&argc, &argv);
+  printf("Arg: %d\n",atoi(argv[1]));
+  int Mb = atoi(argv[1]);
+  int Nb = atoi(argv[2]);
 
   int p_id = 7;
   // Get the number of processors and their ids
@@ -120,19 +117,15 @@ int main(int argc, char** argv) {
   int context;
   int i0 = 0;
   int i1 = -1;
-  //Cblacs_get(-1, 0 , &context);
-  //blacs_get_(&i1, &i0, &context);
-  //Cblacs_get(int context, int request, int* value);
+
   Cblacs_get(-1, 0, &context);
   Cblacs_gridinit(&context, "Row-major", nprow, npcol);
 
-  //blacs_gridinit_(&context, "C", &nprow, &npcol);
   printf("Proc row col: %d %d \n",nprow, npcol);
 
   /* Print grid pattern */
   int myrow, mycol;
   //Cblacs_pcoord(context, myrank, &myrow, &mycol);
-  //blacs_gridinfo_(&context, &nprow, &npcol, &myrow, &mycol);
   Cblacs_gridinfo(context, &nprow, &npcol, &myrow, &mycol);
 
   std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
@@ -142,7 +135,7 @@ int main(int argc, char** argv) {
   double *A_glob = nullptr;
   double *B_glob = nullptr;
   double *C_glob = nullptr;
-  int M = 512, N=256, K=128, Mb = 2, Nb = 2 ;
+  int M = 512, N=256, K=128;
   
   A_glob = new double [M*K];
   B_glob = new double [K*N];
@@ -181,16 +174,11 @@ int main(int argc, char** argv) {
   izero_c = 0;
   iZERO = 0;
   int zero, one;
-  if(mpiroot){
-  	zero = 0;
-  	one = 1;
-  }
-  MPI_Bcast(&zero, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  MPI_Bcast(&one, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  zero = 0;
+  one = 1;
+
   //how big is "my" chunk of matrix A, B, C
-  //int row_a = numroc_(&M, &Mb, &myrow, &izero_a, &nprow);
   int row_a = numroc_(&M, &Mb, &myrow, &zero, &nprow);
-  //int col_a = numroc_(&K, &Nb, &mycol, &izero_a, &npcol);
   int col_a = numroc_(&K, &Nb, &mycol, &zero, &npcol);
 
   // B is distributed along columns
@@ -311,7 +299,7 @@ for(int my_j = 0; my_j < col_b; my_j++){
 
   resetMatrix(C_glob, M, N);
   // Collect local C:
-for(int my_j = 0; my_j < col_c; my_j++){
+  for(int my_j = 0; my_j < col_c; my_j++){
       	jj = (((my_j/Nb) * npcol) + mycol)*Nb + my_j%Nb; 
  	for(int my_i = 0; my_i < row_c; my_i++){
       		ii = (((my_i/Mb) * nprow) + myrow)*Mb + my_i%Mb; 
