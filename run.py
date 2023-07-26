@@ -1,0 +1,10 @@
+import subprocess
+
+
+n = 5
+output = [0]*n
+for i in range(1,n+1):
+    output[i-1] = subprocess.run(["mpirun", "-n", str(2**(i+1)), "./scaling", "1024", "1024","1024","32","32"],\
+                        stdout = subprocess.PIPE, universal_newlines = True).stdout
+    print(2**(i+1))
+
