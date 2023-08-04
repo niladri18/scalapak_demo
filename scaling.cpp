@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <mutex>
+#include <vector>
 #include <limits.h>
 #include <cassert>
 #include <chrono>
@@ -293,17 +294,47 @@ for(int my_j = 0; my_j < col_b; my_j++){
   //}
   //}
   //pdgemm_("N", "N", &row_a, &col_c, &col_a, &alpha, localA,  &one, &one, desc_a, localB, &one, &one, desc_b, &beta, localC, &one, &one, desc_c);
+  int n_cold_run = 2;
+  int n_hot_run = 8;
 
-  std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+  std::vector<double> time_list;
+  
 
-  pdgemm_("N", "N", &M, &N, &K, &alpha, &localA[0],  &one, &one, desc_a, &localB[0], &one, &one, desc_b, &beta, &localC[0], &one, &one, desc_c);
-  //pdgemm_("N", "N", &M, &N, &K, &alpha, localB,  &one, &one, desc_b, localA, &one, &one, desc_a, &beta, localC, &one, &one, desc_c);
-  //if (myrank == 0){
-  //  printf("C in (%d,%d)\n", myrow, mycol);
-  //  printMatrix(localC, row_c, col_c);
-  //}
-  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  std::chrono::steady_clock::duration timeTaken = end - start;
+
+  for (int i = 0; i < n_cold_run; i++){
+  	pdgemm_("N", "N", &M, &N, &K, &alpha, &localA[0],  &one, &one, desc_a, &localB[0], &one, &one, desc_b, &beta, &localC[0], &one, &one, desc_c);
+
+  }
+
+  for (int i = 0; i < n_hot_run; i++ ){
+  	std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+
+  	pdgemm_("N", "N", &M, &N, &K, &alpha, &localA[0],  &one, &one, desc_a, &localB[0], &one, &one, desc_b, &beta, &localC[0], &one, &one, desc_c);
+  	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+  	std::chrono::steady_clock::duration timeTaken = end - start;
+	time_list.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(timeTaken).count());
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  double tmax = 0;
+  double tmean = 0;
+  double tmin = 1000000; 
+
+  for ( auto v : time_list){
+	  //std::cout<<v<<std::endl;
+	  tmean += v;
+	  if(v > tmax){
+		  tmax = v;
+	  }
+	  if (v < tmin){
+		  tmin = v;
+	  }
+  }
+  tmean /= n_hot_run;
+  if(mpiroot){
+  	printf("%d\t%f\t%f\t%f\t%d\t%d\n",nprocs, tmean, tmax, tmin, nprow, npcol);
+  }
+
 
   /*
   for(int i = 0; i < nprocs; ++i) {
@@ -335,10 +366,10 @@ for(int my_j = 0; my_j < col_b; my_j++){
     //printMatrix(C_glob, M, N);
     writeMatrix("ans.out", C_glob, M, N);
   }
-  if (mpiroot){
-  std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(timeTaken).count()
-              << " milliseconds" << std::endl;
-  }
+  //if (mpiroot){
+  //std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(timeTaken).count()
+  //            << " milliseconds" << std::endl;
+  //}
   delete[] localA;
   delete[] localB;
   delete[] localC;
