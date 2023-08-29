@@ -13,7 +13,9 @@ This is an example of how to list things you need to use the software and how to
   mpicxx test.cpp -L/usr/lib -lscalapack -lblas -llapack -lgfortran -o matmul
   ```
 
-### Description of files
+### Description of files 
+
+(relevant files only)
 
 `scaling.cpp` matrix multiplication $`C = AB`$ using scalapack
 
