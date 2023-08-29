@@ -15,5 +15,8 @@ This is an example of how to list things you need to use the software and how to
 
 ### Description of files
 
-`custom.cpp` matrix multiplication (SUMMA) using MPI without scalapack and cblacs
+`scaling.cpp` matrix multiplication `$C = AB$` using scalapack
+
+`dft_app.cpp` matrix multiplication `$C = A^{T}B$` using  scalapack
+`custom.cpp` matrix multiplication `$C = AB$`  (SUMMA) using MPI without scalapack and cblacs
 
