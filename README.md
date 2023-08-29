@@ -8,7 +8,7 @@ This work explores matrix multiplication in a distributed architecture.
 ### Prerequisites
 
 
-Check out [this Youtube link] (https://www.youtube.com/watch?v=Jgvoks1RWB0) to install MPI and scalapack.
+Check out [this Youtube link](https://www.youtube.com/watch?v=Jgvoks1RWB0) to install MPI and scalapack.
 
 
 * Compile:
