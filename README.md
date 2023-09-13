@@ -27,3 +27,4 @@ Check out [this Youtube link](https://www.youtube.com/watch?v=Jgvoks1RWB0) to in
 
 `custom.cpp` matrix multiplication $`C = AB`$  (SUMMA) using MPI without scalapack and cblacs
 
+`mat_vec.cpp` matrix vector multiplication $`C = AX`$ using elemental cyclic distribution 
