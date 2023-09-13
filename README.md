@@ -17,6 +17,17 @@ Check out [this Youtube link](https://www.youtube.com/watch?v=Jgvoks1RWB0) to in
   mpicxx test.cpp -L/usr/lib -lscalapack -lblas -llapack -lgfortran -o matmul
   ```
 
+* Run:
+
+  ```sh
+  mpirun -n 8 ./mat_vec <M> <N> <K> <Mb> <Nb> <Npx> <Npy>
+  ```
+
+   In the processor grid:
+
+  `Npx`: number of processors along x axis
+  `Npy`: number of processors along y axis
+
 ### Description of files 
 
 (relevant files only)
@@ -29,13 +40,3 @@ Check out [this Youtube link](https://www.youtube.com/watch?v=Jgvoks1RWB0) to in
 
 `mat_vec.cpp` matrix vector multiplication $`C = AX`$ using elemental cyclic distribution 
 
-* Run:
-
-  ```sh
-  mpirun -n 8 ./mat_vec <M> <N> <K> <Mb> <Nb> <Npx> <Npy>
-  ```
-
-   In the processor grid:
-
-  `Npx`: number of processors along x axis
-  `Npy`: number of processors along y axis
