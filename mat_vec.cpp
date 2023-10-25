@@ -18,6 +18,11 @@
 extern "C" {
     int dgemm_(char *, char *, int *, int *, int *, double *, double *, int *,
               double *, int *, double *, double *, int *);
+    
+    void dgemv_(char* TRANS, const int* M, const int* N,
+               double* alpha, double* A, const int* LDA, double* X,
+               const int* INCX, double* beta, double* C, const int* INCY);
+
     int numroc_(int *n, int *nb, int *iproc, int *srcproc, int *nprocs);
 }
 
@@ -69,7 +74,16 @@ void initMatrix(double*& matrix, int numRows, int numCols){
   //matrix = new double [numRows*numCols];
   for (int i = 0; i < numRows*numCols; i++){
       //matrix[i] = (double) (rand() / ((double) (INT_MAX * 1.0)));
-      matrix[i] = (i)/numCols + 1;
+      //matrix[i] = (i)%numCols + 1;
+      //matrix[i] = (i)%numCols + 1;
+      matrix[i] = i + 1;
+  }
+}
+
+
+void initVector(double*& vector, int numRows){
+  for (int i = 0; i < numRows; i++){
+      vector[i] = 1;
   }
 }
 
@@ -212,25 +226,27 @@ int main(int argc, char* argv[]) {
 
   /* create row-wise communicators */
   MPI_Comm row_comm;
-  int color_a = my_cart_rank/nprow;
+  //int color_a = my_cart_rank/nprow;
+  int color_a = mycol;
   //Determine color based on row
   MPI_Comm_split(world_comm, color_a, my_cart_rank, &row_comm);
   int row_rank, row_size;
   MPI_Comm_rank(row_comm, &row_rank);
   MPI_Comm_size(row_comm, &row_size);
-    //printf("CART RANK/WORLD RANK: %d/%d \t ROW_COMM RANK/SIZE: %d/%d\n",
-	//        my_cart_rank, myrank, row_rank, row_size);
+
+    printf("CART RANK: %d /WORLD RANK: [%d,%d] \t ROW_COMM RANK/SIZE: %d/%d\n",
+	        myrank, myrow, mycol, row_rank, row_size);
 
   /* create col-wise communicators */
   MPI_Comm col_comm;
-  int color_b = my_cart_rank/npcol;
+  int color_b = myrow;
   //Determine color based on col
   MPI_Comm_split(world_comm, color_b, my_cart_rank, &col_comm);
   int col_rank, col_size;
   MPI_Comm_rank(col_comm, &col_rank);
   MPI_Comm_size(col_comm, &col_size);
-  //printf("CART RANK/WORLD RANK: %d/%d \t COL_COMM RANK/SIZE: %d/%d\n",
-	//my_cart_rank, myrank, col_rank, col_size);
+    //printf("CART RANK/WORLD RANK: [%d,%d] \t COL_COMM RANK/SIZE: %d/%d\n",
+	//        myrow, mycol, col_rank, col_size);
 
 
   
@@ -243,7 +259,8 @@ int main(int argc, char* argv[]) {
     initMatrix(A_glob, M, K);
     printMatrix(A_glob,M,K);
     //printMatrix(A_glob, M, K);
-    initMatrix(X_glob, K, 1);
+    //initMatrix(X_glob, K, 1);
+    initVector(X_glob, K);
     printMatrix(X_glob,K, 1);
     std::cout<<"====================="<<std::endl;
     //printf("A(%d,%d); blocking: %d,%d\n",M,K, Mb, Nb);
@@ -252,7 +269,6 @@ int main(int argc, char* argv[]) {
   MPI_Bcast(&M, 1, MPI_INT, 0, world_comm);
   MPI_Bcast(&K, 1, MPI_INT, 0, world_comm);
   MPI_Bcast(&N, 1, MPI_INT, 0, world_comm);
-  resetMatrix(Y_glob, M, 1);
 
   MPI_Bcast(A_glob, M*K, MPI_DOUBLE, 0, world_comm);
   MPI_Bcast(X_glob, K*1, MPI_DOUBLE, 0, world_comm);
@@ -274,7 +290,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    /*
     for(int i = 0; i < nprocs; ++i) {
     MPI_Barrier(MPI_COMM_WORLD);
     if (myrank == i){
@@ -283,13 +298,13 @@ int main(int argc, char* argv[]) {
         fflush(stdout);
         }
     }
-    */
 
+    MPI_Barrier(MPI_COMM_WORLD);
 
     /* Distribute X in an elemental cyclic distribution*/
 
-    int row_x = numroc_(&K, &one, &my_cart_rank, &zero, &nprocs);
-    double *localX = new double[row_x];
+    int col_x = numroc_(&K, &one, &my_cart_rank, &zero, &nprocs);
+    double *localX = new double[col_x];
 
     for(int i=0; i<K; i++){
         ii = i/(nprocs);
@@ -304,29 +319,135 @@ int main(int argc, char* argv[]) {
         }
     }
 
+
+    /* create local Y*/
+
+    int row_y = numroc_(&K, &one, &my_cart_rank, &zero, &nprocs);
+    double *localY = new double[row_y];
+    resetMatrix(localY, row_y, 1);
+
+
     /*
     for(int i = 0; i < nprocs; ++i) {
     MPI_Barrier(MPI_COMM_WORLD);
     if (myrank == i){
         printf("X in (%d,%d)\n", myrow, mycol);
-        printMatrix(localX, row_x, 1);
+        printMatrix(localX, 1, col_x);
         fflush(stdout);
         }
     }
     */
 
-  double alpha = 1, beta = 1;
+    MPI_Barrier(MPI_COMM_WORLD);
+    //std::cout<<"num rows="<<nprow*col_x<<std::endl;
+    // Decide the size of the local arrays after MPI_allgather (col_x)
+    int mycol_x;
+    MPI_Allreduce(&col_x, &mycol_x, 1, MPI_INT, MPI_SUM, row_comm);
+    //printf("In (%d,%d), %d size: [%d]\n", myrow, mycol,col_x, mycol_x);
+    //MPI_Barrier(row_comm);
+    std::cout<<"==== all gather ===="<<std::endl;
 
-  char transA = 'N', transB = 'N';
+    /* Columnwise gather local X */
 
 
+    double *myworkX = new double[mycol_x];
 
-  delete[] A_glob;
-  delete[] X_glob;
-  delete[] Y_glob;
+    MPI_Allgather(&localX[0], col_x, MPI_DOUBLE, &myworkX[0], col_x, MPI_DOUBLE, row_comm);
 
-  MPI_Comm_free(&world_comm);
-  MPI_Finalize();
+    for(int i = 0; i < nprocs; ++i) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (myrank == i){
+        printf("X in (%d,%d)\n", myrow, mycol);
+        //printMatrix(localX, 1, col_x);
+        printMatrix(myworkX, 1, mycol_x);
+        fflush(stdout);
+        }
+    }
+
+    /*
+    int *recvcounts = new int [nprow];
+    for(int i = 0; i < nprow){
+        if (i==row_rank){
+            recvcounts[i] = col_x;
+        }
+    }
+    int offset = new int [nprow];
+
+    MPI_Allgatherv(&localX[0], recvcounts , MPI_DOUBLE, &myworkX[0], recvcounts,offset, MPI_DOUBLE, row_comm);
+    */
+
+    for(int i = 0; i < nprocs; ++i) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (myrank == i){
+        printf("Dimension in (%d,%d)\n", myrow, mycol);
+        printf("row_a, col_a, mycol_x [%d,%d,%d] \n", row_a, col_a, mycol_x);
+        //printMatrix(myworkX, 1, mycol_x);
+        fflush(stdout);
+        }
+    }
+
+    double *myworkY = new double[row_a]; // variable to store Y
+
+    double alpha = 1, beta = 0;
+
+    char transA = 'T', transB = 'N';
+
+    /* matrix vector multiplication */
+
+    //dgemv_(&transA, &row_a, &col_a, &alpha, &*localA, &row_a, &*myworkX, &one, &beta, &*myworkY, &one);
+
+    //char transA = 'T';
+    //int row_ax = 2;
+    //int col_ax = 4;
+    //dgemv_(&transA, &row_ax, &col_ax, &alpha, &*localA, &row_ax, &*myworkX, &one, &beta, &*myworkY, &one);
+
+    dgemv_(&transA, &col_a, &row_a, &alpha, &localA[0], &col_a, &myworkX[0], &one, &beta, &myworkY[0], &one);
+
+
+    for(int i = 0; i < nprocs; ++i) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (myrank == i){
+        printf("Y in (%d,%d)\n", myrow, mycol);
+        printMatrix(myworkY, 1, row_a);
+        fflush(stdout);
+        }
+    }
+
+    //printf("=============================\n");
+
+    //double *myY = new double[col_a]; // variable to store Y
+    
+    /* Now reduce myworkY along rows and we will get the partial contribution of Y  = AX */
+    //MPI_Reduce_scatter(&myworkY[0], &myY[0], &mycol_x, MPI_DOUBLE, MPI_SUM, col_comm);
+    //int elems = row_a / npcol;
+    //printf("num elems in (%d)\n", elems);
+    int recvcounts[nprocs];
+    for (int i=0; i<nprocs; i++)
+        recvcounts[i] = row_a / npcol;
+
+    int elems = row_a / npcol;
+    double *myY = new double[elems];
+    MPI_Reduce_scatter(&myworkY[0], &myY[0], recvcounts, MPI_DOUBLE, MPI_SUM, col_comm);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    printf("\n");
+    for(int i = 0; i < nprocs; ++i) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (myrank == i){
+        printf("myY in (%d,%d)\n", myrow, mycol);
+        printMatrix(myY, recvcounts[i], 1);
+        fflush(stdout);
+        }
+    MPI_Barrier(MPI_COMM_WORLD);
+    }
+
+
+    delete[] A_glob;
+    delete[] X_glob;
+    delete[] Y_glob;
+
+    MPI_Comm_free(&world_comm);
+    MPI_Finalize();
 
   return 0;
 }
