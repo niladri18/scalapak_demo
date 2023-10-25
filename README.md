@@ -40,3 +40,7 @@ Check out [this Youtube link](https://www.youtube.com/watch?v=Jgvoks1RWB0) to in
 
 `mat_vec.cpp` matrix vector multiplication $`C = AX`$ using elemental cyclic distribution 
 
+### Literature
+
+
+[PARALLEL MATRIX MULTIPLICATION: A SYSTEMATIC JOURNEY](https://www.cs.utexas.edu/users/flame/pubs/2D3DFinal.pdf)
